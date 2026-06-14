@@ -26,8 +26,7 @@
 #define IR_B_LEFT  1386468383UL
 #define IR_B_RIGHT 553536955UL
 
-// ===== Safety & Timing =====
-#define IR_SAFETY_TIMEOUT  2000
+#define IR_SAFETY_TIMEOUT  300
 #define IR_TURN_DURATION   300    // ~90 degrees
 
 // ===== Globals =====
@@ -39,6 +38,7 @@ enum State { STOPPED, FORWARD, BACKWARD, LEFT, RIGHT };
 State state = STOPPED;
 unsigned long lastIRTime = 0;
 unsigned long turnStartTime = 0;
+unsigned long lastCode = 0; // remember last non-REPEAT IR code
 
 // ===== Motor =====
 void motorInit() {
@@ -117,17 +117,30 @@ void setup() {
 void loop() {
   if (irrecv.decode(&irResults)) {
     lastIRTime = millis();
+    unsigned long code = irResults.value;
     State newState = state;
-    if (irResults.value == IR_A_UP || irResults.value == IR_B_UP)
-      newState = FORWARD;
-    else if (irResults.value == IR_A_DOWN || irResults.value == IR_B_DOWN)
-      newState = BACKWARD;
-    else if (irResults.value == IR_A_LEFT || irResults.value == IR_B_LEFT)
-      newState = LEFT;
-    else if (irResults.value == IR_A_RIGHT || irResults.value == IR_B_RIGHT)
-      newState = RIGHT;
-    else if (irResults.value != REPEAT)
-      newState = STOPPED;
+    if (code == REPEAT) {
+      // keep moving forward/backward only if the last non-repeat was up/down
+      if (lastCode == IR_A_UP || lastCode == IR_B_UP)
+        newState = FORWARD;
+      else if (lastCode == IR_A_DOWN || lastCode == IR_B_DOWN)
+        newState = BACKWARD;
+      else
+        newState = (state == LEFT || state == RIGHT) ? state : STOPPED;
+    } else {
+      // store last non-repeat code and act on it
+      lastCode = code;
+      if (code == IR_A_UP || code == IR_B_UP)
+        newState = FORWARD;
+      else if (code == IR_A_DOWN || code == IR_B_DOWN)
+        newState = BACKWARD;
+      else if (code == IR_A_LEFT || code == IR_B_LEFT)
+        newState = LEFT;
+      else if (code == IR_A_RIGHT || code == IR_B_RIGHT)
+        newState = RIGHT;
+      else
+        newState = STOPPED;
+    }
     if (newState != state) {
       state = newState;
       if (state == LEFT || state == RIGHT) {
