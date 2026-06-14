@@ -18,21 +18,27 @@
 // Type A remote
 #define IR_A_UP    16736925UL
 #define IR_A_DOWN  16754775UL
+#define IR_A_LEFT  16720605UL
+#define IR_A_RIGHT 16761405UL
 // Type B remote
 #define IR_B_UP    5316027UL
 #define IR_B_DOWN  2747854299UL
+#define IR_B_LEFT  1386468383UL
+#define IR_B_RIGHT 553536955UL
 
-// ===== Safety =====
+// ===== Safety & Timing =====
 #define IR_SAFETY_TIMEOUT  2000
+#define IR_TURN_DURATION   300    // ~90 degrees
 
 // ===== Globals =====
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 IRrecv irrecv(PIN_IR_RECV);
 decode_results irResults;
 
-enum State { STOPPED, FORWARD, BACKWARD };
+enum State { STOPPED, FORWARD, BACKWARD, LEFT, RIGHT };
 State state = STOPPED;
 unsigned long lastIRTime = 0;
+unsigned long turnStartTime = 0;
 
 // ===== Motor =====
 void motorInit() {
@@ -57,10 +63,22 @@ void motorApply(State s, uint8_t speed) {
     analogWrite(PIN_MOTOR_PWMA, speed);
     digitalWrite(PIN_MOTOR_BIN1, HIGH);
     analogWrite(PIN_MOTOR_PWMB, speed);
-  } else {
+  } else if (s == BACKWARD) {
     digitalWrite(PIN_MOTOR_AIN1, LOW);
     analogWrite(PIN_MOTOR_PWMA, speed);
     digitalWrite(PIN_MOTOR_BIN1, LOW);
+    analogWrite(PIN_MOTOR_PWMB, speed);
+  } else if (s == LEFT) {
+    // Left turn: right wheels forward, left wheels backward
+    digitalWrite(PIN_MOTOR_AIN1, HIGH);
+    analogWrite(PIN_MOTOR_PWMA, speed);
+    digitalWrite(PIN_MOTOR_BIN1, LOW);
+    analogWrite(PIN_MOTOR_PWMB, speed);
+  } else if (s == RIGHT) {
+    // Right turn: right wheels backward, left wheels forward
+    digitalWrite(PIN_MOTOR_AIN1, LOW);
+    analogWrite(PIN_MOTOR_PWMA, speed);
+    digitalWrite(PIN_MOTOR_BIN1, HIGH);
     analogWrite(PIN_MOTOR_PWMB, speed);
   }
 }
@@ -72,6 +90,8 @@ void displayUpdate(State s) {
   switch (s) {
     case FORWARD:  u8g2.drawStr(12, 30, "FORWARD");  break;
     case BACKWARD: u8g2.drawStr(12, 30, "REVERSE");  break;
+    case LEFT:     u8g2.drawStr(20, 30, "LEFT");     break;
+    case RIGHT:    u8g2.drawStr(16, 30, "RIGHT");    break;
     default:       u8g2.drawStr(16, 30, "STOPPED");  break;
   }
   u8g2.drawFrame(0, 40, 128, 24);
@@ -102,17 +122,32 @@ void loop() {
       newState = FORWARD;
     else if (irResults.value == IR_A_DOWN || irResults.value == IR_B_DOWN)
       newState = BACKWARD;
+    else if (irResults.value == IR_A_LEFT || irResults.value == IR_B_LEFT)
+      newState = LEFT;
+    else if (irResults.value == IR_A_RIGHT || irResults.value == IR_B_RIGHT)
+      newState = RIGHT;
     else if (irResults.value != REPEAT)
       newState = STOPPED;
     if (newState != state) {
       state = newState;
+      if (state == LEFT || state == RIGHT) {
+        turnStartTime = millis();
+      }
       motorApply(state, MOTOR_SPEED);
       displayUpdate(state);
     }
     irrecv.resume();
   }
 
-  if (state != STOPPED && millis() - lastIRTime > IR_SAFETY_TIMEOUT) {
+  // Auto-stop turn after duration
+  if ((state == LEFT || state == RIGHT) && millis() - turnStartTime > IR_TURN_DURATION) {
+    state = STOPPED;
+    motorApply(state, 0);
+    displayUpdate(state);
+  }
+
+  // Safety timeout for forward/backward
+  if ((state == FORWARD || state == BACKWARD) && millis() - lastIRTime > IR_SAFETY_TIMEOUT) {
     state = STOPPED;
     motorApply(state, 0);
     displayUpdate(state);
