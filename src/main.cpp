@@ -13,6 +13,9 @@
 #define PIN_IR_RECV     9
 
 #define MOTOR_SPEED     200
+// scale motor output by 75% (use integer math to avoid floats)
+#define MOTOR_SCALE_NUM  3
+#define MOTOR_SCALE_DEN  4
 
 // ===== IR Remote Codes (Elegoo V4.0 remote) =====
 // Type A remote
@@ -58,28 +61,30 @@ void motorApply(State s, uint8_t speed) {
     return;
   }
   digitalWrite(PIN_MOTOR_STBY, HIGH);
+  // apply 75% scaling to requested speed
+  uint8_t scaledSpeed = (uint8_t)((uint16_t)speed * MOTOR_SCALE_NUM / MOTOR_SCALE_DEN);
   if (s == FORWARD) {
     digitalWrite(PIN_MOTOR_AIN1, HIGH);
-    analogWrite(PIN_MOTOR_PWMA, speed);
+    analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
     digitalWrite(PIN_MOTOR_BIN1, HIGH);
-    analogWrite(PIN_MOTOR_PWMB, speed);
+    analogWrite(PIN_MOTOR_PWMB, scaledSpeed);
   } else if (s == BACKWARD) {
     digitalWrite(PIN_MOTOR_AIN1, LOW);
-    analogWrite(PIN_MOTOR_PWMA, speed);
+    analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
     digitalWrite(PIN_MOTOR_BIN1, LOW);
-    analogWrite(PIN_MOTOR_PWMB, speed);
+    analogWrite(PIN_MOTOR_PWMB, scaledSpeed);
   } else if (s == LEFT) {
     // Left turn: right wheels forward, left wheels backward
     digitalWrite(PIN_MOTOR_AIN1, HIGH);
-    analogWrite(PIN_MOTOR_PWMA, speed);
+    analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
     digitalWrite(PIN_MOTOR_BIN1, LOW);
-    analogWrite(PIN_MOTOR_PWMB, speed);
+    analogWrite(PIN_MOTOR_PWMB, scaledSpeed);
   } else if (s == RIGHT) {
     // Right turn: right wheels backward, left wheels forward
     digitalWrite(PIN_MOTOR_AIN1, LOW);
-    analogWrite(PIN_MOTOR_PWMA, speed);
+    analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
     digitalWrite(PIN_MOTOR_BIN1, HIGH);
-    analogWrite(PIN_MOTOR_PWMB, speed);
+    analogWrite(PIN_MOTOR_PWMB, scaledSpeed);
   }
 }
 
