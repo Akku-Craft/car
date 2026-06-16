@@ -67,16 +67,7 @@ void motorApply(State s, uint8_t speed) {
   }
   digitalWrite(PIN_MOTOR_STBY, HIGH);
   // apply 75% scaling to requested speed
-  uint8_t scaledSpeed;
-  if (BoostorNot) {
-    // Boost: volle Leistung
-    scaledSpeed = speed;              // 100 % von speed
-    // oder wenn du wirklich "doppelt" willst:
-    // scaledSpeed = min((uint16_t)speed * 2, 255);
-  } else {
-    // Normal: 75 % Leistung
-    scaledSpeed = (uint8_t)((uint16_t)speed * MOTOR_SCALE_NUM / MOTOR_SCALE_DEN);
-  }
+  uint8_t scaledSpeed = (uint8_t)((uint16_t)speed * MOTOR_SCALE_NUM / MOTOR_SCALE_DEN);
   if (s == FORWARD) {
     digitalWrite(PIN_MOTOR_AIN1, HIGH);
     analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
@@ -163,7 +154,7 @@ void loop() {
       else if (code == IR_A_OK || code == IR_B_OK || BoostorNot == false) {
         // OK-Taste wurde gedrückt
         // hier deine Aktion einfügen
-        BoostorNot = true;
+        BoostorNot == true;
       } else {
         newState = STOPPED;
       }
