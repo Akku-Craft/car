@@ -21,16 +21,16 @@
 // Type A remote
 #define IR_A_UP    16736925UL
 #define IR_A_DOWN  16754775UL
-#define IR_A_LEFT  16720605UL
-#define IR_A_RIGHT 16761405UL
+//#define IR_A_LEFT  16720605UL
+//#define IR_A_RIGHT 16761405UL
 // Type B remote
-#define IR_B_UP    5316027UL
-#define IR_B_DOWN  2747854299UL
-#define IR_B_LEFT  1386468383UL
-#define IR_B_RIGHT 553536955UL
+//#define IR_B_UP    5316027UL
+//#define IR_B_DOWN  2747854299UL
+//#define IR_B_LEFT  1386468383UL
+//#define IR_B_RIGHT 553536955UL
 
 #define IR_A_OK    0x12345678UL
-#define IR_B_OK    0x87654321UL
+//#define IR_B_OK    0x87654321UL
 
 #define IR_SAFETY_TIMEOUT  300
 #define IR_TURN_DURATION   300    // ~90 degrees
@@ -140,27 +140,27 @@ void loop() {
     State newState = state;
     if (code == REPEAT) {
       // keep moving forward/backward only if the last non-repeat was up/down
-      if (lastCode == IR_A_UP || lastCode == IR_B_UP)
+      if (lastCode == IR_A_UP)
         newState = FORWARD;
-      else if (lastCode == IR_A_DOWN || lastCode == IR_B_DOWN)
+      else if (lastCode == IR_A_DOWN)
         newState = BACKWARD;
-      else
-        newState = (state == LEFT || state == RIGHT) ? state : STOPPED;
+      //else
+        //newState = (state == LEFT || state == RIGHT) ? state : STOPPED;
     } else {
       // store last non-repeat code and act on it
       lastCode = code;
-      if (code == IR_A_UP || code == IR_B_UP)
+      if (code == IR_A_UP)
         newState = FORWARD;
-      else if (code == IR_A_DOWN || code == IR_B_DOWN)
+      else if (code == IR_A_DOWN)
         newState = BACKWARD;
-      else if (code == IR_A_LEFT || code == IR_B_LEFT)
-        newState = LEFT;
-      else if (code == IR_A_RIGHT || code == IR_B_RIGHT)
-        newState = RIGHT;
-      else if (code == IR_A_OK || code == IR_B_OK || BoostorNot == true)
+      //else if (code == IR_A_LEFT || code == IR_B_LEFT)
+        //newState = LEFT;
+      //else if (code == IR_A_RIGHT || code == IR_B_RIGHT)
+       // newState = RIGHT;
+      else if (code == IR_A_OK || BoostorNot == true)
         // OK-Taste wurde gedrückt
         BoostorNot = false;
-      else if (code == IR_A_OK || code == IR_B_OK || BoostorNot == false) {
+      else if (code == IR_A_OK || BoostorNot == false) {
         // OK-Taste wurde gedrückt
         // hier deine Aktion einfügen
         BoostorNot = true;
