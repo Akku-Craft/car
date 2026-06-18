@@ -19,8 +19,8 @@
 
 // ===== IR Remote Codes (Elegoo V4.0 remote) =====
 // Type A remote
-#define IR_A_UP    16736925UL
-#define IR_A_DOWN  16754775UL
+#define IR_A_2     16736925UL   // button 2 instead of UP
+#define IR_A_8     16754775UL   // button 8 instead of DOWN
 //#define IR_A_LEFT  16720605UL
 //#define IR_A_RIGHT 16761405UL
 // Type B remote
@@ -29,7 +29,7 @@
 //#define IR_B_LEFT  1386468383UL
 //#define IR_B_RIGHT 553536955UL
 
-#define IR_A_OK    0x12345678UL
+#define IR_A_5     0x12345678UL // button 5 instead of OK
 //#define IR_B_OK    0x87654321UL
 
 #define IR_SAFETY_TIMEOUT  300
@@ -140,28 +140,28 @@ void loop() {
     State newState = state;
     if (code == REPEAT) {
       // keep moving forward/backward only if the last non-repeat was up/down
-      if (lastCode == IR_A_UP)
+      if (lastCode == IR_A_2)
         newState = FORWARD;
-      else if (lastCode == IR_A_DOWN)
+      else if (lastCode == IR_A_8)
         newState = BACKWARD;
       //else
         //newState = (state == LEFT || state == RIGHT) ? state : STOPPED;
     } else {
       // store last non-repeat code and act on it
       lastCode = code;
-      if (code == IR_A_UP)
+      if (code == IR_A_2)
         newState = FORWARD;
-      else if (code == IR_A_DOWN)
+      else if (code == IR_A_8)
         newState = BACKWARD;
       //else if (code == IR_A_LEFT || code == IR_B_LEFT)
         //newState = LEFT;
       //else if (code == IR_A_RIGHT || code == IR_B_RIGHT)
        // newState = RIGHT;
-      else if (code == IR_A_OK || BoostorNot == true)
-        // OK-Taste wurde gedrückt
+      else if (code == IR_A_5 || BoostorNot == true)
+        // button 5 was pressed
         BoostorNot = false;
-      else if (code == IR_A_OK || BoostorNot == false) {
-        // OK-Taste wurde gedrückt
+      else if (code == IR_A_5 || BoostorNot == false) {
+        // button 5 was pressed
         // hier deine Aktion einfügen
         BoostorNot = true;
       } else {
