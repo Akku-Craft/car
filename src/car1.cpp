@@ -29,7 +29,7 @@
 //#define IR_B_LEFT  1386468383UL
 //#define IR_B_RIGHT 553536955UL
 
-#define IR_A_5     0x12345678UL // button 5 instead of OK
+#define IR_A_5     16712445UL   // button 5 (OK) - typical Elegoo NEC value
 //#define IR_B_OK    0x87654321UL
 
 #define IR_SAFETY_TIMEOUT  300
@@ -40,7 +40,15 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 IRrecv irrecv(PIN_IR_RECV);
 decode_results irResults;
 
-bool BoostorNot = false; // shows whether the boost mode is activated
+bool boostActive = false; // shows whether the boost mode is activated
+// Turn speed (independent of boost)
+#define TURN_SPEED 150
+
+// return the effective drive speed (honors boost and 75% scaling)
+uint8_t driveSpeed() {
+  if (boostActive) return MOTOR_SPEED; // full speed in boost
+  return (uint8_t)((uint16_t)MOTOR_SPEED * MOTOR_SCALE_NUM / MOTOR_SCALE_DEN);
+}
 
 enum State { STOPPED, FORWARD, BACKWARD, LEFT, RIGHT };
 State state = STOPPED;
@@ -66,60 +74,56 @@ void motorApply(State s, uint8_t speed) {
     return;
   }
   digitalWrite(PIN_MOTOR_STBY, HIGH);
-  // apply 75% scaling to requested speed
-  uint8_t scaledSpeed;
-  if (BoostorNot) {
-    // Boost: volle Leistung
-    scaledSpeed = speed;              // 100 % von speed
-    // oder wenn du wirklich "doppelt" willst:
-    // scaledSpeed = min((uint16_t)speed * 2, 255);
-  } else {
-    // Normal: 75 % Leistung
-    scaledSpeed = (uint8_t)((uint16_t)speed * MOTOR_SCALE_NUM / MOTOR_SCALE_DEN);
-  }
+  uint8_t out = speed; // speed is already the effective PWM value
   if (s == FORWARD) {
     digitalWrite(PIN_MOTOR_AIN1, HIGH);
-    analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
+    analogWrite(PIN_MOTOR_PWMA, out);
     digitalWrite(PIN_MOTOR_BIN1, HIGH);
-    analogWrite(PIN_MOTOR_PWMB, scaledSpeed);
+    analogWrite(PIN_MOTOR_PWMB, out);
   } else if (s == BACKWARD) {
     digitalWrite(PIN_MOTOR_AIN1, LOW);
-    analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
+    analogWrite(PIN_MOTOR_PWMA, out);
     digitalWrite(PIN_MOTOR_BIN1, LOW);
-    analogWrite(PIN_MOTOR_PWMB, scaledSpeed);
+    analogWrite(PIN_MOTOR_PWMB, out);
   } else if (s == LEFT) {
     // Left turn: right wheels forward, left wheels backward
     digitalWrite(PIN_MOTOR_AIN1, HIGH);
-    analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
+    analogWrite(PIN_MOTOR_PWMA, out);
     digitalWrite(PIN_MOTOR_BIN1, LOW);
-    analogWrite(PIN_MOTOR_PWMB, scaledSpeed);
+    analogWrite(PIN_MOTOR_PWMB, out);
   } else if (s == RIGHT) {
     // Right turn: right wheels backward, left wheels forward
     digitalWrite(PIN_MOTOR_AIN1, LOW);
-    analogWrite(PIN_MOTOR_PWMA, scaledSpeed);
+    analogWrite(PIN_MOTOR_PWMA, out);
     digitalWrite(PIN_MOTOR_BIN1, HIGH);
-    analogWrite(PIN_MOTOR_PWMB, scaledSpeed);
+    analogWrite(PIN_MOTOR_PWMB, out);
   }
 }
 
 // ===== OLED =====
-void displayUpdate(State s) {
+void displayUpdate() {
+  uint8_t spd = (state == LEFT || state == RIGHT) ? TURN_SPEED : driveSpeed();
+
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_ncenB14_tr);
-  switch (s) {
-    case FORWARD:  u8g2.drawStr(12, 30, "FORWARD");  break;
-    case BACKWARD: u8g2.drawStr(12, 30, "REVERSE");  break;
-    case LEFT:     u8g2.drawStr(20, 30, "LEFT");     break;
-    case RIGHT:    u8g2.drawStr(16, 30, "RIGHT");    break;
-    default:       u8g2.drawStr(16, 30, "STOPPED");  break;
+  switch (state) {
+    case FORWARD:  u8g2.drawStr(12, 28, "FORWARD"); break;
+    case BACKWARD: u8g2.drawStr(12, 28, "REVERSE"); break;
+    case LEFT:     u8g2.drawStr(20, 28, "LEFT");    break;
+    case RIGHT:    u8g2.drawStr(16, 28, "RIGHT");   break;
+    default:       u8g2.drawStr(16, 28, "STOPPED"); break;
   }
+
   u8g2.drawFrame(0, 40, 128, 24);
   u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.setCursor(4, 56);
+  u8g2.setCursor(4, 52);
   u8g2.print("Speed: ");
-  u8g2.print(MOTOR_SPEED);
-  uint8_t bw = map(MOTOR_SPEED, 0, 255, 0, 120);
-  u8g2.drawBox(4, 42, bw, 6);
+  u8g2.print(spd);
+  if (boostActive) u8g2.drawStr(78, 52, "BOOST");
+
+  uint8_t bw = map(spd, 0, 255, 0, 120);
+  u8g2.drawBox(4, 55, bw, 6);
+
   u8g2.sendBuffer();
 }
 
@@ -129,7 +133,7 @@ void setup() {
   u8g2.begin();
   motorInit();
   irrecv.enableIRIn();
-  displayUpdate(STOPPED);
+  displayUpdate();
 }
 
 // ===== Main Loop =====
@@ -138,6 +142,7 @@ void loop() {
     lastIRTime = millis();
     unsigned long code = irResults.value;
     State newState = state;
+    bool boostToggled = false;
     if (code == REPEAT) {
       // keep moving forward/backward only if the last non-repeat was up/down
       if (lastCode == IR_A_2)
@@ -157,26 +162,25 @@ void loop() {
         //newState = LEFT;
       //else if (code == IR_A_RIGHT || code == IR_B_RIGHT)
        // newState = RIGHT;
-      else if (code == IR_A_5 || BoostorNot == true)
-        // button 5 was pressed
-        BoostorNot = false;
-      else if (code == IR_A_5 || BoostorNot == false) {
-        // button 5 was pressed
-        // hier deine Aktion einfügen
-        BoostorNot = true;
+      else if (code == IR_A_5) {
+        // toggle boost
+        boostActive = !boostActive;
+        boostToggled = true;
       } else {
         newState = STOPPED;
       }
 
       
     }
-    if (newState != state) {
+    // always update motors/display if state changed or boost toggled
+    if (newState != state || boostToggled) {
       state = newState;
       if (state == LEFT || state == RIGHT) {
         turnStartTime = millis();
       }
-      motorApply(state, MOTOR_SPEED);
-      displayUpdate(state);
+      uint8_t eff = (state == LEFT || state == RIGHT) ? TURN_SPEED : driveSpeed();
+      motorApply(state, eff);
+      displayUpdate();
     }
     irrecv.resume();
   }
@@ -185,13 +189,13 @@ void loop() {
   if ((state == LEFT || state == RIGHT) && millis() - turnStartTime > IR_TURN_DURATION) {
     state = STOPPED;
     motorApply(state, 0);
-    displayUpdate(state);
+    displayUpdate();
   }
 
   // Safety timeout for forward/backward
   if ((state == FORWARD || state == BACKWARD) && millis() - lastIRTime > IR_SAFETY_TIMEOUT) {
     state = STOPPED;
     motorApply(state, 0);
-    displayUpdate(state);
+    displayUpdate();
   }
 }
