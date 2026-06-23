@@ -100,17 +100,23 @@ void motorApply(State s, uint8_t speed) {
   }
 }
 
+enum DriveMode { MODE_NORMAL, MODE_BOOST };
+DriveMode driveMode = MODE_NORMAL;
+
 // ===== OLED =====
 void displayUpdate() {
-  uint8_t spd = (state == LEFT || state == RIGHT) ? TURN_SPEED : driveSpeed();
+
+  if (boostActive) {
+    driveMode = MODE_BOOST;
+  } else {
+    driveMode = MODE_NORMAL;
+  }
 
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_ncenB14_tr);
   switch (state) {
     case FORWARD:  u8g2.drawStr(12, 28, "FORWARD"); break;
     case BACKWARD: u8g2.drawStr(12, 28, "REVERSE"); break;
-    case LEFT:     u8g2.drawStr(20, 28, "LEFT");    break;
-    case RIGHT:    u8g2.drawStr(16, 28, "RIGHT");   break;
     default:       u8g2.drawStr(16, 28, "STOPPED"); break;
   }
 
@@ -118,11 +124,8 @@ void displayUpdate() {
   u8g2.setFont(u8g2_font_ncenB08_tr);
   u8g2.setCursor(4, 52);
   u8g2.print("Speed: ");
-  u8g2.print(spd);
+  u8g2.print(driveMode);
   if (boostActive) u8g2.drawStr(78, 52, "BOOST");
-
-  uint8_t bw = map(spd, 0, 255, 0, 120);
-  u8g2.drawBox(4, 55, bw, 6);
 
   u8g2.sendBuffer();
 }
